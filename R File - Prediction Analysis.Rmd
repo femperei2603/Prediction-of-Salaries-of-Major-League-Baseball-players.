@@ -1,0 +1,238 @@
+---
+title: "Homework 3"
+author: "Group BUAN6356002 4"
+date: "10/24/2019"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+**CLASS**: "BUAN 6356"  
+**GROUP MEMBERS**: "Athisaran Beekar, Femina Pereira, Sinduja Senthil Kumar, Tamanna Kawatra "
+
+### a. Load the packages:
+```{r Load Packages}
+if(!require("pacman")) install.packages("pacman")
+pacman::p_load(caret, data.table, MASS, ggplot2, dplyr, gains, AUC)
+search()
+
+```
+
+
+### b. Read in the data from "spambase data":
+```{r readdata}
+spambase.df <- read.csv("spambase data.csv",header= FALSE)
+spambase.df
+```
+
+
+### c. Insert column names for spambase.df:
+```{r colnames}
+colnames(spambase.df, do.NULL = FALSE)
+colnames(spambase.df)<- c("word_freq_make","word_freq_address","word_freq_all",
+"word_freq_3d","word_freq_our","word_freq_over","word_freq_remove",
+"word_freq_internet","word_freq_order","word_freq_mail","word_freq_receive",
+"word_freq_will","word_freq_people","word_freq_report","word_freq_addresses",
+"word_freq_free","word_freq_business","word_freq_email","word_freq_you",
+"word_freq_credit","word_freq_your","word_freq_font","word_freq_000",
+"word_freq_money","word_freq_hp","word_freq_hpl","word_freq_george",
+"word_freq_65","word_freq_lab","word_freq_labs","word_freq_telnet","word_freq_857",
+"word_freq_data","word_freq_415","word_freq_85","word_freq_technology",
+"word_freq_1999","word_freq_parts","word_freq_pm","word_freq_direct","word_freq_cs","word_freq_meeting","word_freq_original","word_freq_project","word_freq_re",
+"word_freq_edu","word_freq_table","word_freq_conference","char_freq_1",
+"char_freq_2","char_freq_3","char_freq_4","char_freq_5","char_freq_6",
+"capital_run_length_average","capital_run_length_longest","capital_run_length_total","Spam_Notspam")
+spambase.df
+spambase.df$Spam_Notspam <- ifelse(spambase.df$Spam_Notspam > 0 , "Spam", "Non - Spam")
+spambase.df
+
+```
+
+
+#### Question 1 Examine how each predictor differs between the spam and non-spam e-mails by comparing the spam-class average and non-spam-class average.  Identify 10 predictors for which the difference between the spam-class average and non-spam class average is highest.
+
+
+```{r Meandiff for predictors}
+options(scipen=999)
+spambase1.df <- subset(spambase.df, spambase.df$Spam_Notspam == "Spam")
+mean1 <- c(colMeans(spambase1.df[,-c(58)]))
+
+spambase2.df <- subset(spambase.df,spambase.df$Spam_Notspam == "Non - Spam")
+mean2 <- c(colMeans(spambase2.df[,-c(58)]))
+
+finalmean <- mean1 - mean2
+finalmean1 <- abs(finalmean)
+sort(finalmean1, decreasing = TRUE)
+
+```
+
+# *Interpretation 1. From the output we can see that the 10 predictors for which the difference between the spam-class average and non-spam class average is highest are *
+# *1. capital_run_length_total* 
+# *2. capital_run_length_longest*
+# *3. capital_run_length_average*
+# *4. word_freq_george*
+# *5. word_freq_you*
+# *6. word_freq_your*
+# *7. word_freq_hp *
+# *8. word_freq_free *
+# *9. word_freq_hpl*
+# *10.DiffMean_char_freq_4*
+
+
+#### Question 2 :Perform a linear discriminant analysis using the training dataset. Include only 10 predictors identified in the question above in the model
+
+```{r lda}
+
+spambase1.df <- spambase.df[,-c(1:15, 17, 18, 20, 22:24, 28:51, 53, 54)]
+spambase1.df
+# Spliting data into training (80%) and test (20%)
+
+set.seed(42)
+training.index <- createDataPartition(spambase1.df$Spam_Notspam, p = 0.8, list = FALSE)
+spambase1.df.train <- spambase1.df[training.index, ]
+spambase1.df.valid <- spambase1.df[-training.index, ]
+
+# Normalize the data
+   
+norm.values  <- preProcess(spambase1.df.train, method = c("center", "scale"))
+spambase1.df.train.norm <- predict(norm.values, spambase1.df.train)
+spambase1.df.valid.norm <- predict(norm.values, spambase1.df.valid)
+
+lda_spambase1 <- lda(Spam_Notspam ~., data = spambase1.df.train.norm)
+lda_spambase1
+lda_spambase1$counts
+```
+# *Interpretation 2. The linear discriminant analysis is done using the training dataset by including the top 10 predictors from question 1*
+
+
+#### Question 3 : What are the prior probabilities?
+
+# *The probability of spam group and non spam group in our dataset before running any model is the prior probability of the dataset.* 
+# *For Spam Group (1) = 0.3940 *
+# *For Non - Spam Group (0) = 0.6059*
+
+#### Question 4 : What are the coefficients of linear discriminants? Explain
+# * The coefficients of linear discriminants are as follows:*
+#                               *LD1*
+# *word_freq_free              0.3875*
+# *word_freq_you               0.2466*
+# *word_freq_your              0.5715*
+# *word_freq_hp               -0.2354*
+# *word_freq_hpl              -0.1506*
+# *word_freq_george           -0.2104*
+# *char_freq_4                 0.3268*
+# *capital_run_length_average  0.0527*
+# *capital_run_length_longest  0.1297*
+# *capital_run_length_total    0.3725*
+
+# *The objective of coefficients in LDA is to maximise the difference and separate the records into different classes. Here the Coefficients of linear discriminants aims at separating each record into spam or non spam email.Also we have only one LD1 for this dataset because coefficients of linear discrimination is always one less than the number of classes. Here since the number of classes is 2 (spam and non- spam), So 2-1 = 1*
+
+
+#### Question 5 : Generate linear discriminants using your analysis. How are they used in classifying spams and non-spams? 
+
+```{r}
+
+pred.valid.df <- predict(lda_spambase1, spambase1.df.valid.norm)
+pred.valid.df
+```
+# *Interpretation 5 : The LD1 - which are the linear discriminants are generated. A record is classified as "spam/Not- spam" based on the posterier probability and ld1($x) values. When ld1 is lesser than 0, the posterier probability of that record falling into Non spam is high and when ld1 is greater than 0, the posterier probability of that record falling into spam is higher.The 8th record in our dataset falls into validation data and the posterier probabilities and ld1 for the same are as follows :Non - Spam = 0.87418  Spam = 0.12581 ld1 = -0.846. Since the probability of this record falling into the Non-spam category is greater than 0.5 (default threshold taken by model =0.5), it is classified as Non- Spam *.
+
+
+
+#### Question 6 :How many linear discriminants are in the model? Why?
+
+# *The number of linear discriminants in the model is 1. The linear discriminants would always be one less than the number of classes. Here since the number of classes are two i.e. - Spam and Non Spam , the number of linear discriminants is 2-1 = 1*
+
+#### Question 7 : Generate LDA plot using the training and validation data. What information is presented in these plots?  How are they different? 
+
+```{r}
+
+# *LDA plot for training data*
+plot(lda_spambase1)
+lda_train_plot <- cbind(spambase1.df.train.norm,predict(lda_spambase1)$x)
+ggplot(lda_train_plot,aes(LD1,LD1))+
+  geom_point(aes(color = Spam_Notspam))+
+  ggtitle("LDA PLOT FOR TRAINING DATA")
+
+# *LDA plot for validation data* 
+
+lda_valid_plot <- cbind(spambase1.df.valid.norm,predict(lda_spambase1,spambase1.df.valid.norm)$x)
+ggplot(lda_valid_plot,aes(LD1,LD1))+
+  geom_point(aes(color= Spam_Notspam))+
+  ggtitle("LDA PLOT FOR VALIDATION DATA")
+
+```
+
+#### Interpretation 7 : The histogram shows that most of the Non-Spam data values are below 0 and greater number of Spam data values are above 0. And there is very little amount of overlap in the histogram between spam and Not spam*
+#* The scatterplot is plot between LD1 vs LD1 as there are only 2 classes. As in the histogram, the scatter plot also shows that most of the blue(Spam records) points are above 0 and most of the red(Non- Spam records) are below zero*
+
+
+  
+#### Question 8 : Generate the relevant confusion matrix. What are the sensitivity and specificity? 
+
+```{r  confusion matrix}
+
+accuracy <- table(pred.valid.df$class, spambase1.df.valid.norm$Spam_Notspam)
+confusionMatrix(accuracy, positive = "Spam")
+
+```
+
+# *Interpretation 8 : From this confusion matrix the sensitivity is 0.674(ability to detect the spam class members correctly) and specificity = 0.901(ability to rule out non spam emails correctly)*
+
+
+
+#### Question 9 :Generate lift and decile charts for the validation dataset and evaluate the effectiveness of the model in identifying spams. 
+```{r}
+# *Lift chart for validation data*
+pb <- NULL
+pb <- pred.valid.df$posterior
+pb <- as.data.frame(pb)
+pb
+pred.LDA <- data.frame(spambase1.df.valid.norm$Spam_Notspam, pb$Spam)
+colnames(pred.LDA) <- c("target","score")
+pred.LDA
+lift.LDA <- lift(target ~ score, data = pred.LDA, cuts=10, class="Spam")
+xyplot(lift.LDA, main="LDA - Lift Chart", type=c("l","g"), lwd=2
+       , scales=list(x=list(alternating=FALSE,tick.number = 10)
+                     ,y=list(alternating=FALSE,tick.number = 10)))
+
+# *Decile chart for validation data*
+pn <- ifelse(spambase1.df.valid.norm$Spam_Notspam == "Spam", 1 ,0)
+df_numeric <- data.frame(pn, pb$Spam)
+colnames(df_numeric) <- c("actual","prob")
+df_numeric
+gain <- gains(df_numeric$actual, df_numeric$prob)
+barplot(gain$mean.resp / mean(df_numeric$actual), names.arg = gain$depth, xlab = "Percentile", space = 1.3,
+        ylab = "Mean Response", main = "Decile-wise lift chart", col = "seagreen", border = NA)
+
+```
+# *Interpretation 9 : From this lift chart we can see that our model prediction(blue line) outperforms the baseline model or benchmark criterion (centre grey diagonal line). The % of samples which are predicted as SPAM are greater than with the baseline model with no predictors. However the blue line becomes flat only after crossing 80% of samples and hence the model prediction is ok.*
+# *From decile chart also it is evident that our model prediction is greater, from the first few bars.The top decile contains 10% of the records most likely to be classified as spam. Inorder to say that the model prediction is very good, the bars should slide from left to right. In our case since there is an exception to this condition in the first and second bar and because all the other bars are descending from left to right only we can conclude that our model prediction is good to some extent*
+
+
+#### Question 10  :Does accuracy of model changes if you use a probability threshold of 0.2.  Explain your answer
+
+
+```{r confusion matrix with different probability thresholds}
+
+# *Confusion Matrix when Probability threshold = 0.5*
+accuracy <- table(pred.valid.df$class, spambase1.df.valid.norm$Spam_Notspam)
+confusionMatrix(accuracy, positive = "Spam")
+
+# *Confusion Matrix when Probability threshold = 0.2*
+x <-  as.factor(ifelse(pred.valid.df$posterior[,2]>= 0.2, "Spam", "Non - Spam"))
+accuracy_1 <-   table(x,spambase1.df.valid.norm$Spam_Notspam )
+confusionMatrix(accuracy_1, positive = "Spam")
+
+# *Sum function with different probability thresholds*
+sum(pred.valid.df$posterior[,2]>= 0.5)
+sum(pred.valid.df$posterior[,2]>= 0.2)
+```
+
+# *Interpretation 10: By changing the probability threshold from 0.5 to 0.2, the accuracy of the model goes down from 81.18% to 74.43%. The sum function of prbabilities for "0.5" and "0.2" tell us that When probability was 0.5, the records that were classified as SPAM is 299 and with probability 0.2 it is 529 records.  This is also evident through our confusion matrix were the records predicted as spam when probability = 0.5 is 55+244 = 299 records and when probability = 0.2 is 201 + 328 = 529 records*
+# *Accuracy is calculated by (TP+TN)/P+N.* 
+# *When Probability = 0.5, TP =502 , TN =244 , P+N = 919*
+# *Therefore accuarcy = 746/919 = 0.8117 and*
+# *When Probability = 0.2, TP =356 , TN =328 , P+N = 919*
+# *Therefore accuarcy = 684/919 = 0.7442. Thus our accuracy reduces*
